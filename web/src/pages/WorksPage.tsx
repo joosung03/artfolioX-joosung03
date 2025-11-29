@@ -1,3 +1,4 @@
+import { AppHeader } from "../layout/AppHeader";
 import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useAuth } from "../auth/AuthContext";
@@ -208,9 +209,7 @@ export default function WorksPage() {
 
   return (
     <div className="app-root">
-      <header className="app-header">
-        <h1 className="app-title">ArtfolioX</h1>
-      </header>
+      <AppHeader />
 
       <main className="app-main works-main">
         <section className="work-form-card">

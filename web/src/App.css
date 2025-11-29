@@ -331,3 +331,268 @@
   color: #e5e7eb;
   font-size: 12px;
 }
+
+.portfolio-main {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 24px;
+}
+
+.portfolio-sidebar {
+  padding: 16px;
+  background: #020617;
+  border-radius: 16px;
+  border: 1px solid #1f2937;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.portfolio-new-form {
+  display: flex;
+  gap: 8px;
+}
+
+.portfolio-new-form input {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 12px;
+}
+
+.portfolio-new-form button {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: none;
+  background: #38bdf8;
+  color: #020617;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.portfolio-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.portfolio-list-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.portfolio-list-item.selected .portfolio-list-button {
+  border-color: #38bdf8;
+  background: #0b1120;
+}
+
+.portfolio-list-button {
+  flex: 1;
+  border-radius: 10px;
+  border: 1px solid #1f2937;
+  padding: 6px 8px;
+  background: transparent;
+  color: #e5e7eb;
+  text-align: left;
+  cursor: pointer;
+}
+
+.portfolio-list-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.portfolio-list-meta {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.portfolio-delete-btn {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.portfolio-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.portfolio-basic {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #1f2937;
+  background: #020617;
+}
+
+.portfolio-basic-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.portfolio-basic-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.portfolio-basic-grid input {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 12px;
+}
+
+.portfolio-builder {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.portfolio-column {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid #1f2937;
+  background: #020617;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.portfolio-work-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.portfolio-work-card {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  background: #020617;
+}
+
+.portfolio-work-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #020617;
+}
+
+.portfolio-work-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portfolio-work-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.portfolio-work-text label {
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.portfolio-work-text input,
+.portfolio-work-text textarea {
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid #1f2937;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 11px;
+}
+
+.small-pill-btn {
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  padding: 4px 8px;
+  font-size: 11px;
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.small-pill-btn:hover {
+  background: #111827;
+}
+
+.portfolio-preview {
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  padding: 10px;
+  background: #020617;
+}
+
+.portfolio-preview-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.portfolio-preview-item {
+  display: flex;
+  gap: 8px;
+}
+
+.preview-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #020617;
+  flex-shrink: 0;
+}
+
+.preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-text {
+  flex: 1;
+}
+
+.preview-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.preview-desc {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-top: 2px;
+}
