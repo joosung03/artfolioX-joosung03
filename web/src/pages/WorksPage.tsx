@@ -1,89 +1,69 @@
-import { AppHeader } from "../layout/AppHeader";
 import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useAuth } from "../auth/AuthContext";
 import type { Work } from "../works/types";
-
-const WORKS_KEY_PREFIX = "artfoliox_works_";
-
-function getWorksKey(email: string) {
-  return `${WORKS_KEY_PREFIX}${email}`;
-}
-
-function makeId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
+import { AppHeader } from "../layout/AppHeader";
+import { API_BASE_URL } from "../api/config";
 
 export default function WorksPage() {
   const { user } = useAuth();
 
-  // form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [project, setProject] = useState("");
   const [year, setYear] = useState("");
   const [tagsInput, setTagsInput] = useState("");
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // list state
   const [works, setWorks] = useState<Work[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // filter state
   const [filterText, setFilterText] = useState("");
   const [filterProject, setFilterProject] = useState("");
 
-  // 로그인한 유저의 작품 목록 로드
-  useEffect(() => {
+  async function reloadWorks() {
     if (!user?.email) {
       setWorks([]);
       return;
     }
-    const key = getWorksKey(user.email);
-    const raw = localStorage.getItem(key);
-    if (!raw) {
-      setWorks([]);
-      return;
-    }
     try {
-      const parsed = JSON.parse(raw) as Work[];
-      // createdAt 기준 내림차순 정렬
-      parsed.sort((a, b) => b.createdAt - a.createdAt);
-      setWorks(parsed);
-    } catch {
-      setWorks([]);
+      setError(null);
+      const res = await fetch(
+        `${API_BASE_URL}/works?userEmail=${encodeURIComponent(
+          user.email
+        )}`
+      );
+      if (!res.ok) {
+        throw new Error("Failed to load works");
+      }
+      const data = (await res.json()) as Work[];
+      data.sort((a, b) => b.createdAt - a.createdAt);
+      setWorks(data);
+    } catch (err) {
+      console.error(err);
+      setError("작품 목록을 불러오는 중 오류가 발생했습니다.");
     }
-  }, [user]);
-
-  function persist(updated: Work[]) {
-    if (!user?.email) return;
-    const key = getWorksKey(user.email);
-    localStorage.setItem(key, JSON.stringify(updated));
   }
 
-  // 이미지 선택 → data URL로 미리보기
-  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0] ?? null;
+  useEffect(() => {
+    reloadWorks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
-    if (!selected) {
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    if (!file) {
       setPreviewUrl(null);
       return;
     }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result === "string") {
-        setPreviewUrl(result); // data:image/...;base64,...
-      }
-    };
-    reader.readAsDataURL(selected);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
   }
 
   function resetForm() {
@@ -92,13 +72,13 @@ export default function WorksPage() {
     setProject("");
     setYear("");
     setTagsInput("");
+    setSelectedFile(null);
     setPreviewUrl(null);
     setEditingId(null);
     setError(null);
   }
 
-  // 새 작품 생성 또는 기존 작품 수정
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!user?.email) {
       setError("로그인 상태가 아닙니다.");
@@ -115,52 +95,42 @@ export default function WorksPage() {
         .map((t) => t.trim())
         .filter((t) => t.length > 0) ?? [];
 
-    const now = Date.now();
-
-    if (editingId) {
-      // 수정 모드
-      const updated = works.map((w) => {
-        if (w.id !== editingId) return w;
-
-        return {
-          ...w,
-          title: title.trim(),
-          description: description.trim() || null,
-          project: project.trim() || null,
-          year: year.trim() || null,
-          tags,
-          imageData: previewUrl ?? w.imageData ?? null,
-          // createdAt 은 그대로 유지
-        };
-      });
-
-      updated.sort((a, b) => b.createdAt - a.createdAt);
-      setWorks(updated);
-      persist(updated);
-    } else {
-      // 새로 추가
-      const newWork: Work = {
-        id: makeId(),
-        userEmail: user.email,
-        title: title.trim(),
-        description: description.trim() || null,
-        createdAt: now,
-        imageData: previewUrl ?? null,
-        project: project.trim() || null,
-        year: year.trim() || null,
-        tags,
-      };
-
-      const updated = [newWork, ...works];
-      setWorks(updated);
-      persist(updated);
+    const formData = new FormData();
+    formData.append("userEmail", user.email);
+    formData.append("title", title.trim());
+    formData.append("description", description.trim());
+    formData.append("project", project.trim());
+    formData.append("year", year.trim());
+    formData.append("tags", JSON.stringify(tags));
+    if (selectedFile) {
+      formData.append("image", selectedFile);
     }
 
-    setSaving(false);
-    resetForm();
+    const endpoint = editingId
+      ? `${API_BASE_URL}/works/${editingId}`
+      : `${API_BASE_URL}/works`;
+    const method = editingId ? "PUT" : "POST";
+
+    try {
+      const res = await fetch(endpoint, { method, body: formData });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "작품 저장에 실패했습니다.");
+      }
+      await reloadWorks();
+      resetForm();
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "작품 저장 중 알 수 없는 오류가 발생했습니다."
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
-  // 수정 시작
   function handleEdit(work: Work) {
     setEditingId(work.id);
     setTitle(work.title);
@@ -168,17 +138,27 @@ export default function WorksPage() {
     setProject(work.project ?? "");
     setYear(work.year ?? "");
     setTagsInput(work.tags?.join(", ") ?? "");
-    setPreviewUrl(work.imageData ?? null);
+    setSelectedFile(null);
+    setPreviewUrl(work.imageUrl ?? null);
     setError(null);
   }
 
-  // 삭제
-  function handleDelete(id: string) {
-    const updated = works.filter((w) => w.id !== id);
-    setWorks(updated);
-    persist(updated);
-    if (editingId === id) {
-      resetForm();
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/works/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const text = await res.text();
+        throw new Error(text || "삭제에 실패했습니다.");
+      }
+      await reloadWorks();
+      if (editingId === id) {
+        resetForm();
+      }
+    } catch (err) {
+      console.error(err);
+      setError("작품 삭제 중 오류가 발생했습니다.");
     }
   }
 
@@ -190,7 +170,6 @@ export default function WorksPage() {
     );
   }
 
-  // 필터 적용
   const visibleWorks = works.filter((w) => {
     const text = filterText.trim().toLowerCase();
     const proj = filterProject.trim().toLowerCase();
@@ -215,7 +194,7 @@ export default function WorksPage() {
         <section className="work-form-card">
           <h2>{editingId ? "Edit work" : "New work"}</h2>
           <p className="hint-text">
-            작품 제목, 프로젝트, 연도, 태그, 이미지까지 한 번에 저장할 수 있습니다.
+            작품 제목, 프로젝트, 연도, 태그, 이미지를 서버에 저장합니다.
           </p>
 
           <form onSubmit={handleSubmit} className="work-form">
@@ -336,9 +315,9 @@ export default function WorksPage() {
               {visibleWorks.map((w) => (
                 <li key={w.id} className="work-item">
                   <div className="work-item-main">
-                    {w.imageData && (
+                    {w.imageUrl && (
                       <div className="work-image">
-                        <img src={w.imageData} alt={w.title} />
+                        <img src={w.imageUrl} alt={w.title} />
                       </div>
                     )}
                     <div className="work-text">
@@ -368,10 +347,7 @@ export default function WorksPage() {
                         <button type="button" onClick={() => handleEdit(w)}>
                           Edit
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(w.id)}
-                        >
+                        <button type="button" onClick={() => handleDelete(w.id)}>
                           Delete
                         </button>
                       </div>

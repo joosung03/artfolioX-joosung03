@@ -9,9 +9,9 @@ export interface PortfolioItem {
     id: string;
     userEmail: string;
     title: string;
-    targetSchool?: string | null;
-    targetMajor?: string | null;
-    year?: string | null;
+    targetSchool: string | null;
+    targetMajor: string | null;
+    year: string | null;
     items: PortfolioItem[];
     createdAt: number;
     updatedAt: number;

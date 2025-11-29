@@ -1,30 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { AppHeader } from "../layout/AppHeader";
 import { useAuth } from "../auth/AuthContext";
+import { AppHeader } from "../layout/AppHeader";
 import type { Work } from "../works/types";
-import type {
-  PortfolioVersion,
-  PortfolioItem,
-} from "../portfolios/types";
+import type { PortfolioVersion, PortfolioItem } from "../portfolios/types";
 
-const WORKS_KEY_PREFIX = "artfoliox_works_";
-const PORTFOLIOS_KEY_PREFIX = "artfoliox_portfolios_";
+type BasicFormState = {
+  title: string;
+  targetSchool: string;
+  targetMajor: string;
+  year: string;
+};
 
-function getWorksKey(email: string) {
-  return `${WORKS_KEY_PREFIX}${email}`;
-}
-
-function getPortfoliosKey(email: string) {
-  return `${PORTFOLIOS_KEY_PREFIX}${email}`;
-}
-
-function makeId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
+const EMPTY_BASIC_FORM: BasicFormState = {
+  title: "",
+  targetSchool: "",
+  targetMajor: "",
+  year: "",
+};
+import { API_BASE_URL } from "../api/config";
 
 export default function PortfoliosPage() {
   const { user } = useAuth();
@@ -36,86 +30,123 @@ export default function PortfoliosPage() {
   const [newTitle, setNewTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // 필터나 검색은 다음 단계에서, 일단 기본 기능에 집중
+  const [basicForm, setBasicForm] = useState<BasicFormState>(EMPTY_BASIC_FORM);
+  const isComposingRef = useRef(false);
 
-  // 로그인한 유저의 작품 목록 로드
+  // ----- 작품 목록: 서버에서 가져오기 -----
   useEffect(() => {
     if (!user?.email) {
       setWorks([]);
       return;
     }
-    const key = getWorksKey(user.email);
-    const raw = localStorage.getItem(key);
-    if (!raw) {
-      setWorks([]);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as Work[];
-      parsed.sort((a, b) => b.createdAt - a.createdAt);
-      setWorks(parsed);
-    } catch {
-      setWorks([]);
-    }
-  }, [user]);
+    const email = user.email;
 
-  // 로그인한 유저의 포트폴리오 목록 로드
-  useEffect(() => {
-    if (!user?.email) {
-      setPortfolios([]);
-      setSelectedId(null);
-      return;
-    }
-    const key = getPortfoliosKey(user.email);
-    const raw = localStorage.getItem(key);
-    if (!raw) {
-      setPortfolios([]);
-      setSelectedId(null);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as PortfolioVersion[];
-      parsed.sort((a, b) => b.updatedAt - a.updatedAt);
-      setPortfolios(parsed);
-      if (parsed.length > 0) {
-        setSelectedId((prev) => prev ?? parsed[0].id);
+    async function loadWorks() {
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/works?userEmail=${encodeURIComponent(
+            email
+          )}`
+        );
+        if (!res.ok) {
+          throw new Error("Failed to load works");
+        }
+        const data = (await res.json()) as Work[];
+        data.sort((a, b) => b.createdAt - a.createdAt);
+        setWorks(data);
+      } catch (err) {
+        console.error("loadWorks error", err);
+        // 작품 없다고 해서 포트폴리오 전체가 막히진 않게 에러 메시지는 화면에 안 띄움
       }
-    } catch {
-      setPortfolios([]);
-      setSelectedId(null);
     }
+
+    loadWorks();
   }, [user]);
 
-  function persistPortfolios(updated: PortfolioVersion[]) {
-    if (!user?.email) return;
-    const key = getPortfoliosKey(user.email);
-    localStorage.setItem(key, JSON.stringify(updated));
-  }
+  // ----- 포트폴리오 목록: 서버에서 가져오기 -----
+  async function reloadPortfolios(currentSelectedId?: string | null) {
+    if (!user?.email) {
+      setPortfolios([]);
+      setSelectedId(null);
+      return;
+    }
+    const email = user.email;
 
-  function updatePortfolio(
-    id: string,
-    patch: Partial<PortfolioVersion>
-  ) {
-    setPortfolios((prev) => {
-      const next = prev.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              ...patch,
-              updatedAt: Date.now(),
-            }
-          : p
+    try {
+      setError(null);
+      const res = await fetch(
+        `${API_BASE_URL}/portfolios?userEmail=${encodeURIComponent(
+          email
+        )}`
       );
-      next.sort((a, b) => b.updatedAt - a.updatedAt);
-      persistPortfolios(next);
-      return next;
-    });
+      if (!res.ok) {
+        throw new Error("Failed to load portfolios");
+      }
+      const data = (await res.json()) as PortfolioVersion[];
+      data.sort((a, b) => b.updatedAt - a.updatedAt);
+      setPortfolios(data);
+
+      if (data.length === 0) {
+        setSelectedId(null);
+      } else if (currentSelectedId) {
+        const exists = data.some((p) => p.id === currentSelectedId);
+        setSelectedId(exists ? currentSelectedId : data[0].id);
+      } else {
+        setSelectedId((prev) =>
+          prev && data.some((p) => p.id === prev) ? prev : data[0].id
+        );
+      }
+    } catch (err) {
+      console.error("reloadPortfolios error", err);
+      setError("포트폴리오를 불러오는 중 오류가 발생했습니다.");
+    }
   }
 
-  const current =
-    portfolios.find((p) => p.id === selectedId) ?? null;
+  useEffect(() => {
+    reloadPortfolios(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
-  function handleCreatePortfolio(e: FormEvent<HTMLFormElement>) {
+  // 현재 선택된 포트폴리오
+  const current = portfolios.find((p) => p.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!current) {
+      setBasicForm(EMPTY_BASIC_FORM);
+      return;
+    }
+    setBasicForm({
+      title: current.title ?? "",
+      targetSchool: current.targetSchool ?? "",
+      targetMajor: current.targetMajor ?? "",
+      year: current.year ?? "",
+    });
+  }, [current?.id]);
+
+  type BasicFieldKey = "title" | "targetSchool" | "targetMajor" | "year";
+
+  function commitBasicFieldChange(field: BasicFieldKey, rawValue: string) {
+    if (!current) return;
+    if (field === "title") {
+      handleBasicFieldChange("title", rawValue);
+      return;
+    }
+
+    const normalized = rawValue.trim() === "" ? null : rawValue;
+    if (field === "targetSchool") {
+      handleBasicFieldChange("targetSchool", normalized);
+    } else if (field === "targetMajor") {
+      handleBasicFieldChange("targetMajor", normalized);
+    } else {
+      handleBasicFieldChange("year", normalized);
+    }
+  }
+
+  function handleBasicInputChange(field: BasicFieldKey, value: string) {
+    setBasicForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleCreatePortfolio(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!user?.email) {
       setError("로그인 상태가 아닙니다.");
@@ -124,55 +155,107 @@ export default function PortfoliosPage() {
     const title = newTitle.trim();
     if (!title) return;
 
-    const now = Date.now();
-    const newPortfolio: PortfolioVersion = {
-      id: makeId(),
-      userEmail: user.email,
-      title,
-      targetSchool: null,
-      targetMajor: null,
-      year: null,
-      items: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    setPortfolios((prev) => {
-      const next = [newPortfolio, ...prev];
-      persistPortfolios(next);
-      return next;
-    });
-    setSelectedId(newPortfolio.id);
-    setNewTitle("");
-    setError(null);
-  }
-
-  function handleDeletePortfolio(id: string) {
-    setPortfolios((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      persistPortfolios(next);
-      return next;
-    });
-    if (selectedId === id) {
-      setSelectedId((prev) =>
-        prev === id ? null : prev
+    try {
+      setError(null);
+      const res = await fetch(`${API_BASE_URL}/portfolios`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userEmail: user.email,
+          title,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "포트폴리오 생성에 실패했습니다.");
+      }
+      const created = (await res.json()) as PortfolioVersion;
+      // 새로 로드하거나, 낙관적 갱신
+      await reloadPortfolios(created.id);
+      setNewTitle("");
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "포트폴리오 생성 중 오류가 발생했습니다."
       );
     }
   }
 
-  function handleBasicFieldChange<K extends keyof PortfolioVersion>(
-    key: K,
-    value: PortfolioVersion[K]
+  async function handleDeletePortfolio(id: string) {
+    try {
+      setError(null);
+      const res = await fetch(`${API_BASE_URL}/portfolios/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const text = await res.text();
+        throw new Error(text || "삭제에 실패했습니다.");
+      }
+      await reloadPortfolios(
+        selectedId === id ? null : selectedId
+      );
+    } catch (err) {
+      console.error(err);
+      setError("포트폴리오 삭제 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function updatePortfolioRemote(
+    id: string,
+    patch: Partial<PortfolioVersion>
+  ) {
+    try {
+      setError(null);
+      const res = await fetch(`${API_BASE_URL}/portfolios/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "포트폴리오 저장에 실패했습니다.");
+      }
+      const updated = (await res.json()) as PortfolioVersion;
+      setPortfolios((prev) => {
+        const others = prev.filter((p) => p.id !== id);
+        const next = [updated, ...others].sort(
+          (a, b) => b.updatedAt - a.updatedAt
+        );
+        return next;
+      });
+    } catch (err) {
+      console.error(err);
+      setError("포트폴리오 업데이트 중 오류가 발생했습니다.");
+    }
+  }
+
+  function handleBasicFieldChange(
+    field: "title" | "targetSchool" | "targetMajor" | "year",
+    value: string | null
   ) {
     if (!current) return;
-    updatePortfolio(current.id, { [key]: value } as Partial<PortfolioVersion>);
+
+    let val: string | null = value;
+    if (field === "title") {
+      val = value ?? "";
+    } else {
+      val = !value || value.trim() === "" ? null : value;
+    }
+
+    updatePortfolioRemote(current.id, {
+      [field]: val,
+    } as Partial<PortfolioVersion>);
   }
 
   function handleAddWorkToCurrent(workId: string) {
     if (!current) return;
-    const exists = current.items.some(
-      (i) => i.workId === workId
-    );
+    const exists = current.items.some((i) => i.workId === workId);
     if (exists) return;
 
     const maxOrder =
@@ -187,15 +270,13 @@ export default function PortfoliosPage() {
     };
 
     const items = [...current.items, newItem];
-    updatePortfolio(current.id, { items });
+    updatePortfolioRemote(current.id, { items });
   }
 
   function handleRemoveWorkFromCurrent(workId: string) {
     if (!current) return;
-    const items = current.items.filter(
-      (i) => i.workId !== workId
-    );
-    updatePortfolio(current.id, { items });
+    const items = current.items.filter((i) => i.workId !== workId);
+    updatePortfolioRemote(current.id, { items });
   }
 
   function handleItemCustomChange(
@@ -209,7 +290,7 @@ export default function PortfoliosPage() {
         ? { ...item, [field]: value || null }
         : item
     );
-    updatePortfolio(current.id, { items });
+    updatePortfolioRemote(current.id, { items });
   }
 
   function handleMoveItem(workId: string, dir: "up" | "down") {
@@ -217,13 +298,10 @@ export default function PortfoliosPage() {
     const sorted = [...current.items].sort(
       (a, b) => a.order - b.order
     );
-    const index = sorted.findIndex(
-      (i) => i.workId === workId
-    );
+    const index = sorted.findIndex((i) => i.workId === workId);
     if (index === -1) return;
 
-    const swapIndex =
-      dir === "up" ? index - 1 : index + 1;
+    const swapIndex = dir === "up" ? index - 1 : index + 1;
     if (swapIndex < 0 || swapIndex >= sorted.length) {
       return;
     }
@@ -232,12 +310,11 @@ export default function PortfoliosPage() {
     sorted[index] = sorted[swapIndex];
     sorted[swapIndex] = tmp;
 
-    // order 재번호 부여
     const reOrdered = sorted.map((item, idx) => ({
       ...item,
       order: idx + 1,
     }));
-    updatePortfolio(current.id, { items: reOrdered });
+    updatePortfolioRemote(current.id, { items: reOrdered });
   }
 
   if (!user?.email) {
@@ -251,9 +328,7 @@ export default function PortfoliosPage() {
   const availableWorksForCurrent: Work[] = current
     ? works.filter(
         (w) =>
-          !current.items.some(
-            (i) => i.workId === w.id
-          )
+          !current.items.some((i) => i.workId === w.id)
       )
     : works;
 
@@ -263,9 +338,7 @@ export default function PortfoliosPage() {
       .sort((a, b) => a.order - b.order)
       .map((item) => ({
         item,
-        work: works.find(
-          (w) => w.id === item.workId
-        ),
+        work: works.find((w) => w.id === item.workId),
       })) ?? [];
 
   const totalSelected = current?.items.length ?? 0;
@@ -291,12 +364,18 @@ export default function PortfoliosPage() {
                 setNewTitle(e.target.value)
               }
             />
-            <button type="submit" disabled={!newTitle.trim()}>
+            <button
+              type="submit"
+              disabled={!newTitle.trim()}
+            >
               Add
             </button>
           </form>
           {error && (
-            <p className="error-text" style={{ marginTop: 4 }}>
+            <p
+              className="error-text"
+              style={{ marginTop: 4 }}
+            >
               {error}
             </p>
           )}
@@ -320,7 +399,9 @@ export default function PortfoliosPage() {
                     {p.title}
                   </div>
                   <div className="portfolio-list-meta">
-                    {p.targetSchool && <span>{p.targetSchool}</span>}
+                    {p.targetSchool && (
+                      <span>{p.targetSchool}</span>
+                    )}
                     {p.targetMajor && (
                       <>
                         {" "}
@@ -368,74 +449,130 @@ export default function PortfoliosPage() {
                     <span>Title</span>
                     <input
                       type="text"
-                      value={current.title}
+                      value={basicForm.title}
                       onChange={(e) =>
-                        handleBasicFieldChange(
-                          "title",
-                          e.target.value
-                        )
+                        handleBasicInputChange("title", e.target.value)
                       }
+                      onCompositionStart={() => {
+                        isComposingRef.current = true;
+                      }}
+                      onCompositionEnd={(e) => {
+                        isComposingRef.current = false;
+                        commitBasicFieldChange("title", e.currentTarget.value);
+                      }}
+                      onBlur={(e) => {
+                        if (isComposingRef.current) return;
+                        commitBasicFieldChange("title", e.currentTarget.value);
+                      }}
                     />
                   </label>
                   <label>
                     <span>Target school</span>
                     <input
                       type="text"
-                      value={current.targetSchool ?? ""}
+                      value={basicForm.targetSchool}
                       onChange={(e) =>
-                        handleBasicFieldChange(
+                        handleBasicInputChange(
                           "targetSchool",
-                          e.target.value || null
+                          e.target.value
                         )
                       }
                       placeholder="예: 서울대 디자인과"
+                      onCompositionStart={() => {
+                        isComposingRef.current = true;
+                      }}
+                      onCompositionEnd={(e) => {
+                        isComposingRef.current = false;
+                        commitBasicFieldChange(
+                          "targetSchool",
+                          e.currentTarget.value
+                        );
+                      }}
+                      onBlur={(e) => {
+                        if (isComposingRef.current) return;
+                        commitBasicFieldChange(
+                          "targetSchool",
+                          e.currentTarget.value
+                        );
+                      }}
                     />
                   </label>
                   <label>
                     <span>Target major</span>
                     <input
                       type="text"
-                      value={current.targetMajor ?? ""}
+                      value={basicForm.targetMajor}
                       onChange={(e) =>
-                        handleBasicFieldChange(
+                        handleBasicInputChange(
                           "targetMajor",
-                          e.target.value || null
+                          e.target.value
                         )
                       }
                       placeholder="예: 시각디자인"
+                      onCompositionStart={() => {
+                        isComposingRef.current = true;
+                      }}
+                      onCompositionEnd={(e) => {
+                        isComposingRef.current = false;
+                        commitBasicFieldChange(
+                          "targetMajor",
+                          e.currentTarget.value
+                        );
+                      }}
+                      onBlur={(e) => {
+                        if (isComposingRef.current) return;
+                        commitBasicFieldChange(
+                          "targetMajor",
+                          e.currentTarget.value
+                        );
+                      }}
                     />
                   </label>
                   <label>
                     <span>Year</span>
                     <input
                       type="text"
-                      value={current.year ?? ""}
+                      value={basicForm.year}
                       onChange={(e) =>
-                        handleBasicFieldChange(
-                          "year",
-                          e.target.value || null
-                        )
+                        handleBasicInputChange("year", e.target.value)
                       }
                       placeholder="예: 2026"
+                      onCompositionStart={() => {
+                        isComposingRef.current = true;
+                      }}
+                      onCompositionEnd={(e) => {
+                        isComposingRef.current = false;
+                        commitBasicFieldChange("year", e.currentTarget.value);
+                      }}
+                      onBlur={(e) => {
+                        if (isComposingRef.current) return;
+                        commitBasicFieldChange("year", e.currentTarget.value);
+                      }}
                     />
                   </label>
                 </div>
-                <p className="hint-text" style={{ marginTop: 4 }}>
+                <p
+                  className="hint-text"
+                  style={{ marginTop: 4 }}
+                >
                   현재 포함된 작품 수 {totalSelected}개
                 </p>
               </div>
 
               <div className="portfolio-builder">
+                {/* 왼쪽: 사용 가능한 작품 리스트 */}
                 <div className="portfolio-column">
                   <h3>Available works</h3>
                   <p className="hint-text">
-                    이 포트폴리오에 추가할 작품을 선택하세요.
+                    이 포트폴리오에 추가할 작품을
+                    선택하세요.
                   </p>
                   <div className="portfolio-work-list">
                     {availableWorksForCurrent.length === 0 ? (
                       <p className="hint-text">
-                        추가 가능한 작품이 없습니다. 먼저
-                        Works 페이지에서 작품을 등록하세요.
+                        추가 가능한 작품이 없습니다.
+                        먼저 Works 페이지에서 작품을
+                        등록하세요.
                       </p>
                     ) : (
                       availableWorksForCurrent.map((w) => (
@@ -443,10 +580,10 @@ export default function PortfoliosPage() {
                           key={w.id}
                           className="portfolio-work-card"
                         >
-                          {w.imageData && (
+                          {w.imageUrl && (
                             <div className="portfolio-work-thumb">
                               <img
-                                src={w.imageData}
+                                src={w.imageUrl}
                                 alt={w.title}
                               />
                             </div>
@@ -456,16 +593,24 @@ export default function PortfoliosPage() {
                               {w.title}
                             </div>
                             <div className="work-meta-line">
-                              {w.project && <span>{w.project}</span>}
-                              {w.project && w.year && <span> · </span>}
-                              {w.year && <span>{w.year}</span>}
+                              {w.project && (
+                                <span>{w.project}</span>
+                              )}
+                              {w.project && w.year && (
+                                <span> · </span>
+                              )}
+                              {w.year && (
+                                <span>{w.year}</span>
+                              )}
                             </div>
                           </div>
                           <button
                             type="button"
                             className="small-pill-btn"
                             onClick={() =>
-                              handleAddWorkToCurrent(w.id)
+                              handleAddWorkToCurrent(
+                                w.id
+                              )
                             }
                           >
                             Add
@@ -476,12 +621,16 @@ export default function PortfoliosPage() {
                   </div>
                 </div>
 
+                {/* 가운데: 선택된 작품 + 순서 / 텍스트 편집 */}
                 <div className="portfolio-column">
-                  <h3>Selected works (order & text)</h3>
+                  <h3>
+                    Selected works (order & text)
+                  </h3>
                   <p className="hint-text">
                     순서를 조정하고, 이 포트폴리오에서만
-                    사용할 제목과 설명을 적을 수 있습니다.
-                    비워두면 원래 작품 정보를 사용합니다.
+                    사용할 제목과 설명을 적을 수
+                    있습니다. 비워두면 원래 작품 정보를
+                    사용합니다.
                   </p>
                   <div className="portfolio-work-list">
                     {itemsWithWork.length === 0 ? (
@@ -489,118 +638,127 @@ export default function PortfoliosPage() {
                         아직 선택된 작품이 없습니다.
                       </p>
                     ) : (
-                      itemsWithWork.map(({ item, work }) =>
-                        !work ? null : (
-                          <div
-                            key={item.workId}
-                            className="portfolio-work-card"
-                          >
-                            {work.imageData && (
-                              <div className="portfolio-work-thumb">
-                                <img
-                                  src={work.imageData}
-                                  alt={work.title}
-                                />
-                              </div>
-                            )}
-                            <div className="portfolio-work-text">
-                              <div className="work-title">
-                                {work.title}
-                              </div>
-                              <div className="work-meta-line">
-                                순서 {item.order}
-                              </div>
-                              <label>
-                                <span>Custom title</span>
-                                <input
-                                  type="text"
-                                  value={
-                                    item.customTitle ?? ""
-                                  }
-                                  onChange={(
-                                    e: ChangeEvent<HTMLInputElement>
-                                  ) =>
-                                    handleItemCustomChange(
-                                      item.workId,
-                                      "customTitle",
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="비워두면 원래 제목 사용"
-                                />
-                              </label>
-                              <label>
-                                <span>Custom description</span>
-                                <textarea
-                                  rows={2}
-                                  value={
-                                    item.customDescription ??
-                                    ""
-                                  }
-                                  onChange={(
-                                    e: ChangeEvent<HTMLTextAreaElement>
-                                  ) =>
-                                    handleItemCustomChange(
-                                      item.workId,
-                                      "customDescription",
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="비워두면 원래 메모/설명 사용"
-                                />
-                              </label>
-                              <div className="work-actions">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleMoveItem(
-                                      item.workId,
-                                      "up"
-                                    )
-                                  }
-                                >
-                                  ↑
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleMoveItem(
-                                      item.workId,
-                                      "down"
-                                    )
-                                  }
-                                >
-                                  ↓
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleRemoveWorkFromCurrent(
-                                      item.workId
-                                    )
-                                  }
-                                >
-                                  Remove
-                                </button>
+                      itemsWithWork.map(
+                        ({ item, work }) =>
+                          work && (
+                            <div
+                              key={item.workId}
+                              className="portfolio-work-card"
+                            >
+                              {work.imageUrl && (
+                                <div className="portfolio-work-thumb">
+                                  <img
+                                    src={work.imageUrl}
+                                    alt={work.title}
+                                  />
+                                </div>
+                              )}
+                              <div className="portfolio-work-text">
+                                <div className="work-title">
+                                  {work.title}
+                                </div>
+                                <div className="work-meta-line">
+                                  순서 {item.order}
+                                </div>
+                                <label>
+                                  <span>
+                                    Custom title
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={
+                                      item.customTitle ??
+                                      ""
+                                    }
+                                    onChange={(
+                                      e: ChangeEvent<HTMLInputElement>
+                                    ) =>
+                                      handleItemCustomChange(
+                                        item.workId,
+                                        "customTitle",
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="비워두면 원래 제목 사용"
+                                  />
+                                </label>
+                                <label>
+                                  <span>
+                                    Custom description
+                                  </span>
+                                  <textarea
+                                    rows={2}
+                                    value={
+                                      item.customDescription ??
+                                      ""
+                                    }
+                                    onChange={(
+                                      e: ChangeEvent<HTMLTextAreaElement>
+                                    ) =>
+                                      handleItemCustomChange(
+                                        item.workId,
+                                        "customDescription",
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="비워두면 원래 메모/설명 사용"
+                                  />
+                                </label>
+                                <div className="work-actions">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleMoveItem(
+                                        item.workId,
+                                        "up"
+                                      )
+                                    }
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleMoveItem(
+                                        item.workId,
+                                        "down"
+                                      )
+                                    }
+                                  >
+                                    ↓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleRemoveWorkFromCurrent(
+                                        item.workId
+                                      )
+                                    }
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )
+                          )
                       )
                     )}
                   </div>
                 </div>
 
+                {/* 오른쪽: 프리뷰 */}
                 <div className="portfolio-column">
                   <h3>Preview</h3>
                   <p className="hint-text">
-                    실제 제출용 포트폴리오에서 보이는 순서와
-                    텍스트를 미리 볼 수 있습니다.
+                    실제 제출용 포트폴리오에서 보이는
+                    순서와 텍스트를 미리 볼 수 있습니다.
                   </p>
                   <div className="portfolio-preview">
                     <h4>
                       {current.title}{" "}
-                      {current.year && <span>({current.year})</span>}
+                      {current.year && (
+                        <span>({current.year})</span>
+                      )}
                     </h4>
                     {current.targetSchool && (
                       <p>
@@ -614,43 +772,48 @@ export default function PortfoliosPage() {
                       </p>
                     )}
                     <ol className="portfolio-preview-list">
-                      {itemsWithWork.map(({ item, work }) => {
-                        if (!work) return null;
-                        const effectiveTitle =
-                          (item.customTitle &&
-                            item.customTitle.trim()) ||
-                          work.title;
-                        const effectiveDesc =
-                          (item.customDescription &&
-                            item.customDescription.trim()) ||
-                          work.description ||
-                          "";
-                        return (
-                          <li
-                            key={item.workId}
-                            className="portfolio-preview-item"
-                          >
-                            {work.imageData && (
-                              <div className="preview-thumb">
-                                <img
-                                  src={work.imageData}
-                                  alt={effectiveTitle}
-                                />
-                              </div>
-                            )}
-                            <div className="preview-text">
-                              <div className="preview-title">
-                                {item.order}. {effectiveTitle}
-                              </div>
-                              {effectiveDesc && (
-                                <div className="preview-desc">
-                                  {effectiveDesc}
+                      {itemsWithWork.map(
+                        ({ item, work }) => {
+                          if (!work) return null;
+                          const effectiveTitle =
+                            (item.customTitle &&
+                              item.customTitle.trim()) ||
+                            work.title;
+                          const effectiveDesc =
+                            (item.customDescription &&
+                              item.customDescription.trim()) ||
+                            work.description ||
+                            "";
+                          return (
+                            <li
+                              key={item.workId}
+                              className="portfolio-preview-item"
+                            >
+                              {work.imageUrl && (
+                                <div className="preview-thumb">
+                                  <img
+                                    src={work.imageUrl}
+                                    alt={
+                                      effectiveTitle
+                                    }
+                                  />
                                 </div>
                               )}
-                            </div>
-                          </li>
-                        );
-                      })}
+                              <div className="preview-text">
+                                <div className="preview-title">
+                                  {item.order}.{" "}
+                                  {effectiveTitle}
+                                </div>
+                                {effectiveDesc && (
+                                  <div className="preview-desc">
+                                    {effectiveDesc}
+                                  </div>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        }
+                      )}
                     </ol>
                   </div>
                 </div>
