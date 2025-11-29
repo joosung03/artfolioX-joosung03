@@ -1,73 +1,64 @@
-# React + TypeScript + Vite
+## ArtfolioX Web (React + TypeScript + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+이 디렉터리는 **ArtfolioX**의 프론트엔드 SPA입니다.  
+미술 전공 학생들이 자신의 작품을 정리하고, 지원용 포트폴리오 버전을 여러 개 만들어볼 수 있도록 돕는 도구입니다.
 
-Currently, two official plugins are available:
+React 19, TypeScript, Vite로 구성되어 있으며, `server/`에서 실행되는 백엔드 API와 통신합니다.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 1주차 기능 (Features – Week 1)
 
-## React Compiler
+- **Auth**
+  - 비밀번호 없이 이메일만으로 “로그인” (identifier) 하는 방식
+  - `AuthContext` 로 로그인 상태 관리
+  - `RequireAuth` 를 이용한 간단한 보호 라우트
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Works page**
+  - 로그인한 사용자의 작품 생성 / 수정 / 삭제
+  - 필드: `title`(필수), `description`, `project`, `year`, `tags` (선택)
+  - 이미지 업로드 + 썸네일 프리뷰 (`/uploads` 폴더에 저장된 파일 사용)
+  - 제목/설명/태그 기준 검색, 프로젝트별 필터
+  - 서버 에러에 대한 간단한 에러 메시지 처리 및 폼 초기화 로직
 
-## Expanding the ESLint configuration
+- **Portfolios page**
+  - 현재 로그인한 사용자의 작품 목록을 불러와 포트폴리오 “버전”을 여러 개 생성
+  - 포트폴리오별 기본 정보: `title`, `target school`, `target major`, `year`
+  - 포함할 작품 선택, 순서 변경, 포트폴리오 전용 Custom title/description 설정
+  - 한글 IME(조합형 입력)를 고려한 입력 처리(조합 완료 시점에만 서버 업데이트)
+  - 실제 제출 형태에 가까운 미리보기(순서, 제목, 설명을 반영해 리스트 출력)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### API 설정 (API configuration)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- 모든 API 호출은 `src/api/config.ts` 의 `API_BASE_URL` 을 사용합니다.
+  - 기본값: `http://localhost:4000/api`
+- 백엔드(`server/`)에서 제공하는 주요 엔드포인트:
+  - `GET /api/works?userEmail=...`
+  - `POST /api/works` (multipart, `image` 필드 선택)
+  - `PUT /api/works/:id`
+  - `DELETE /api/works/:id`
+  - `GET /api/portfolios?userEmail=...`
+  - `POST /api/portfolios`
+  - `PUT /api/portfolios/:id`
+  - `DELETE /api/portfolios/:id`
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 스크립트 (Scripts)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+`web/` 디렉터리에서 실행:
+
+```bash
+npm install        # 의존성 설치
+npm run dev        # Vite 개발 서버 실행 (http://localhost:5173)
+npm run build      # 타입 체크 + 프로덕션 빌드
+npm run preview    # 프로덕션 빌드 프리뷰
+npm run lint       # ESLint 실행
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 개발 참고 (Development notes)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- 라우팅 설정 위치: `src/App.tsx`
+  - `/login`, `/` (dashboard), `/works`, `/portfolios`
+- Auth context 구현: `src/auth/AuthContext.tsx`
+- 주요 페이지:
+  - `src/pages/LoginPage.tsx`
+  - `src/pages/WorksPage.tsx`
+  - `src/pages/PortfoliosPage.tsx`
+- 공용 헤더 / 내비게이션: `src/layout/AppHeader.tsx`
