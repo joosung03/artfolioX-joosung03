@@ -274,3 +274,60 @@
 .work-text {
   flex: 1;
 }
+
+.work-meta-line {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.tag-chip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  background: #020617;
+}
+
+.work-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.work-actions button {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+}
+
+.work-actions button:hover {
+  background: #111827;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.filter-bar input {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 12px;
+}
