@@ -18,6 +18,11 @@ const EMPTY_BASIC_FORM: BasicFormState = {
   targetMajor: "",
   year: "",
 };
+
+type ItemDraft = {
+  customTitle: string;
+  customDescription: string;
+};
 import { API_BASE_URL } from "../api/config";
 
 export default function PortfoliosPage() {
@@ -32,6 +37,7 @@ export default function PortfoliosPage() {
 
   const [basicForm, setBasicForm] = useState<BasicFormState>(EMPTY_BASIC_FORM);
   const isComposingRef = useRef(false);
+  const [itemDrafts, setItemDrafts] = useState<Record<string, ItemDraft>>({});
 
   // ----- 작품 목록: 서버에서 가져오기 -----
   useEffect(() => {
@@ -113,6 +119,7 @@ export default function PortfoliosPage() {
   useEffect(() => {
     if (!current) {
       setBasicForm(EMPTY_BASIC_FORM);
+      setItemDrafts({});
       return;
     }
     setBasicForm({
@@ -121,6 +128,14 @@ export default function PortfoliosPage() {
       targetMajor: current.targetMajor ?? "",
       year: current.year ?? "",
     });
+    const nextDrafts: Record<string, ItemDraft> = {};
+    for (const item of current.items) {
+      nextDrafts[item.workId] = {
+        customTitle: item.customTitle ?? "",
+        customDescription: item.customDescription ?? "",
+      };
+    }
+    setItemDrafts(nextDrafts);
   }, [current?.id]);
 
   type BasicFieldKey = "title" | "targetSchool" | "targetMajor" | "year";
@@ -144,6 +159,35 @@ export default function PortfoliosPage() {
 
   function handleBasicInputChange(field: BasicFieldKey, value: string) {
     setBasicForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateItemDraft(
+    workId: string,
+    field: "customTitle" | "customDescription",
+    value: string
+  ) {
+    setItemDrafts((prev) => {
+      const prevForItem: ItemDraft = prev[workId] ?? {
+        customTitle: "",
+        customDescription: "",
+      };
+      return {
+        ...prev,
+        [workId]: {
+          ...prevForItem,
+          [field]: value,
+        },
+      };
+    });
+  }
+
+  function commitItemDraft(
+    workId: string,
+    field: "customTitle" | "customDescription"
+  ) {
+    const draft = itemDrafts[workId];
+    const value = draft?.[field] ?? "";
+    handleItemCustomChange(workId, field, value);
   }
 
   async function handleCreatePortfolio(e: FormEvent<HTMLFormElement>) {
@@ -275,8 +319,15 @@ export default function PortfoliosPage() {
 
   function handleRemoveWorkFromCurrent(workId: string) {
     if (!current) return;
-    const items = current.items.filter((i) => i.workId !== workId);
-    updatePortfolioRemote(current.id, { items });
+    const remaining = current.items
+      .filter((i) => i.workId !== workId)
+      .sort((a, b) => a.order - b.order)
+      .map((item, idx) => ({
+        ...item,
+        order: idx + 1,
+      }));
+
+    updatePortfolioRemote(current.id, { items: remaining });
   }
 
   function handleItemCustomChange(
@@ -661,46 +712,80 @@ export default function PortfoliosPage() {
                                   순서 {item.order}
                                 </div>
                                 <label>
-                                  <span>
-                                    Custom title
-                                  </span>
+                                  <span>Custom title</span>
                                   <input
                                     type="text"
                                     value={
+                                      itemDrafts[item.workId]
+                                        ?.customTitle ??
                                       item.customTitle ??
                                       ""
                                     }
                                     onChange={(
                                       e: ChangeEvent<HTMLInputElement>
                                     ) =>
-                                      handleItemCustomChange(
+                                      updateItemDraft(
                                         item.workId,
                                         "customTitle",
                                         e.target.value
                                       )
                                     }
+                                    onCompositionStart={() => {
+                                      isComposingRef.current = true;
+                                    }}
+                                    onCompositionEnd={() => {
+                                      isComposingRef.current = false;
+                                      commitItemDraft(
+                                        item.workId,
+                                        "customTitle"
+                                      );
+                                    }}
+                                    onBlur={() => {
+                                      if (isComposingRef.current) return;
+                                      commitItemDraft(
+                                        item.workId,
+                                        "customTitle"
+                                      );
+                                    }}
                                     placeholder="비워두면 원래 제목 사용"
                                   />
                                 </label>
                                 <label>
-                                  <span>
-                                    Custom description
-                                  </span>
+                                  <span>Custom description</span>
                                   <textarea
                                     rows={2}
                                     value={
+                                      itemDrafts[item.workId]
+                                        ?.customDescription ??
                                       item.customDescription ??
                                       ""
                                     }
                                     onChange={(
                                       e: ChangeEvent<HTMLTextAreaElement>
                                     ) =>
-                                      handleItemCustomChange(
+                                      updateItemDraft(
                                         item.workId,
                                         "customDescription",
                                         e.target.value
                                       )
                                     }
+                                    onCompositionStart={() => {
+                                      isComposingRef.current = true;
+                                    }}
+                                    onCompositionEnd={() => {
+                                      isComposingRef.current = false;
+                                      commitItemDraft(
+                                        item.workId,
+                                        "customDescription"
+                                      );
+                                    }}
+                                    onBlur={() => {
+                                      if (isComposingRef.current) return;
+                                      commitItemDraft(
+                                        item.workId,
+                                        "customDescription"
+                                      );
+                                    }}
                                     placeholder="비워두면 원래 메모/설명 사용"
                                   />
                                 </label>

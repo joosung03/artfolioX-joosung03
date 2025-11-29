@@ -12,15 +12,9 @@
         "order": 1,
         "customTitle": null,
         "customDescription": null
-      },
-      {
-        "workId": "1764426874832-c64ee967981fb",
-        "order": 2,
-        "customTitle": null,
-        "customDescription": null
       }
     ],
     "createdAt": 1764427313224,
-    "updatedAt": 1764428558568
+    "updatedAt": 1764429547215
   }
 ]
